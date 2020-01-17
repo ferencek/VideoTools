@@ -1,10 +1,9 @@
 import os
 import sys
 import pickle
-import tempfile
-import json
 import datetime
 import shlex, subprocess
+from pymediainfo import MediaInfo
 from optparse import OptionParser
 
 # character encoding hack
@@ -12,32 +11,13 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 
-def findStreams(f, data):
+def getTrack(mediaInfo, track_type):
 
-    video_idx = -1
-    audio_idx = -1
+    for track in mediaInfo.tracks:
+        if track.track_type == track_type:
+            return track
 
-    try:
-        for index, info in enumerate(data['streams']):
-            if video_idx >= 0 and audio_idx >= 0:
-                break
-            try:
-                if info['codec_type'] == 'video' and video_idx < 0:
-                    video_idx = index
-                if info['codec_type'] == 'audio' and audio_idx < 0:
-                    audio_idx = index
-            except KeyError:
-                print ''
-                print 'Problem with finding codec_type info for', f
-                print data
-                print ''
-    except KeyError:
-        print ''
-        print 'Problem with finding streams info for', f
-        print data
-        print ''
-
-    return video_idx, audio_idx
+    return None
 
 def collectFiles(path, extensions, files):
 
@@ -54,112 +34,104 @@ def collectFiles(path, extensions, files):
 
 def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0.0):
 
-    tmp = tempfile.NamedTemporaryFile(delete=False)
-    #print tmp.name
-
     total_duration = 0.
 
     for f in video_files:
         if not f.startswith(source): continue
 
-        cmd = 'ffprobe -v quiet -print_format json -show_format -show_streams \"%s\" > %s' % (f, tmp.name)
-        #print cmd
-        os.system(cmd)
+        cmd = 'mediainfo -f --Output=OLDXML \"%s\"' % f
+        p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        xml_mediaInfo, err = p.communicate()
 
-        data = {}
+        mediaInfo = MediaInfo(xml_mediaInfo)
 
-        try:
-            data = json.load(open(tmp.name))
-        except ValueError:
-            print ''
-            print 'Problem with getting media info for', f
-            print ''
-            continue
+        general = getTrack(mediaInfo, 'General')
+
+        total_br = 0.
 
         # leave already transcoded files untouched
-        try:
-            if 'tags' in data['format'].keys():
-                if 'comment' in data['format']['tags'].keys():
-                    if 'ffmpeg transcode/repack' in data['format']['tags']['comment']:
-                        print 'File', f, 'already transcoded. Skipping...'
-                        continue
-        except KeyError:
-            print ''
-            print 'Problem with finding format info for', f, 'Skipping...'
-            print data
-            print ''
+        if general:
+            #print [attr for attr in dir(general) if not attr.startswith('__')]
+            if general.comment:
+                if 'ffmpeg transcode/repack' in general.comment:
+                    print 'File', f, 'already transcoded. Skipping...'
+                    continue
+            if general.overall_bit_rate:
+                total_br = float( general.overall_bit_rate )
+            else:
+                print 'Missing total bit rate info for', f, 'Skipping...'
+                os.system('mediainfo \"%s\"' % f)
+                continue
+        else:
+            print 'Problem with getting general info for', f, 'Skipping...'
+            os.system('mediainfo \"%s\"' % f)
             continue
 
-        video_idx, audio_idx = findStreams(f, data)
-        if video_idx < 0:
-            print ''
-            print 'Problem with finding video stream for', f, 'Skipping...'
-            print data
-            print ''
-            continue
-        if audio_idx < 0:
-            print ''
-            print 'Problem with finding audio stream for', f, 'Skipping...'
-            print data
-            print ''
-            continue
-
-        video_br = 0.
         audio_br = 0.
         channels = 2.
 
-        try:
-            video_br = float( data['streams'][video_idx]['bit_rate'] )
-        except KeyError:
-            print ''
-            print 'Problem with getting video bit rate info for', f, 'Skipping...'
-            print data
-            print ''
+        audio = getTrack(mediaInfo, 'Audio')
+
+        if audio:
+            #print [attr for attr in dir(audio) if not attr.startswith('__')]
+            if audio.bit_rate:
+                audio_br = float( audio.bit_rate )
+            else:
+                print 'Missing audio bit rate info for', f, 'Skipping...'
+                os.system('mediainfo \"%s\"' % f)
+                continue
+            if audio.channel_s:
+                channels = float( audio.channel_s )
+            else:
+                print 'Missing audio channels info for', f, 'Skipping...'
+                os.system('mediainfo \"%s\"' % f)
+                continue
+        else:
+            print 'Problem with finding audio stream for', f, 'Skipping...'
+            os.system('mediainfo \"%s\"' % f)
             continue
 
-        try:
-            audio_br = float( data['streams'][audio_idx]['bit_rate'] )
-        except KeyError:
-            print ''
-            print 'Problem with getting audio bit rate info for', f, 'Skipping...'
-            print data
-            print ''
-            continue
+        video_br = 0.
 
-        try:
-            channels = float( data['streams'][audio_idx]['channels'] )
-        except KeyError:
-            print ''
-            print 'Problem with getting audio channels info for', f, 'Skipping...'
-            print data
-            print ''
+        video = getTrack(mediaInfo, 'Video')
+
+        if video:
+            #print [attr for attr in dir(video) if not attr.startswith('__')]
+            if video.bit_rate:
+                video_br = float( video.bit_rate )
+            else:
+                print 'Missing video bit rate info for', f
+        else:
+            print 'Problem with finding video stream for', f, 'Skipping...'
+            os.system('mediainfo \"%s\"' % f)
             continue
 
         # leave .mp4 and .mkv files that already meet the bit rate requirements untouched
         extensions = ('.mp4', '.mkv')
-        if checkBitRate and f.lower().endswith(extensions) and video_br < v_br and audio_br < (channels * a_br)/2.:
+        if checkBitRate and f.lower().endswith(extensions) and video.bit_rate and video_br < v_br and audio_br < (channels * a_br)/2.:
             print 'File', f, 'already meets the bit rate requirements. Skipping...'
             print '  Video bit rate:', video_br/1e6, 'Mbps'
             print '  Audio channels:', int(channels)
             print '  Audio bit rate:', audio_br/1e3, 'kbps'
             continue
 
-        try:
-            # detect UHD videos
-            if data['streams'][video_idx]['width'] > 1920:
-                print ''
-                print 'File', f, 'has width greater than 1920 pixels:', data['streams'][video_idx]['width']
-        except KeyError:
-            print ''
+        # detect UHD videos
+        if video.width:
+            if int( video.width ) > 1920:
+                print 'File', f, 'has width greater than 1920 pixels:', video.width
+        else:
             print 'Problem with getting video width info for', f
-            print data
-            print ''
+            os.system('mediainfo \"%s\"' % f)
 
-        total_duration += float(data['streams'][video_idx]['duration'])
-        files.append([f, os.path.getsize(f), data, video_idx, audio_idx])
+        # duration stored in ms, converting to s
+        if general.duration:
+            total_duration += float( general.duration ) / 1e3
+        else:
+            print 'Problem with getting duration info for', f, 'Skipping...'
+            os.system('mediainfo \"%s\"' % f)
+            continue
+        files.append([f, os.path.getsize(f), xml_mediaInfo])
 
-    tmp.close()
-    os.unlink(tmp.name)
     return total_duration
 
 
@@ -316,19 +288,14 @@ def main():
             bv = '4M'
             ba = '128k'
 
-            video_br = float( f[2]['streams'][f[3]]['bit_rate'] )
-            audio_br = float( f[2]['streams'][f[4]]['bit_rate'] )
-            channels = float( f[2]['streams'][f[4]]['channels'] )
-            total_br = 0.
+            mediaInfo = MediaInfo(f[2])
+            general   = getTrack(mediaInfo, 'General')
+            audio     = getTrack(mediaInfo, 'Audio')
+            video     = getTrack(mediaInfo, 'Video')
 
-            try:
-                total_br = float( f[2]['format']['bit_rate'] )
-            except KeyError:
-                print ''
-                print 'Problem with getting the total bit rate info for', f, 'Skipping...'
-                print f[2]
-                print ''
-                continue
+            total_br = float( general.overall_bit_rate )
+            audio_br = float( audio.bit_rate )
+            channels = float( audio.channel_s )
 
             # if mono, reduce the audio bit rate
             if int( channels ) == 1:
@@ -350,26 +317,36 @@ def main():
             print f[0]
             print ''
 
-            # check for corrupt video bit rate
-            corrupt_video_br = False
-            if video_br > 1.1 * total_br and video_br > 50e6:
-                corrupt_video_br = True
-                print 'File has a corrupt video bit rate info. Video stream will be transcoded with video bit rate set to (total - audio)'
+            video_br = 0.
+
+            # check video bit rate info
+            if video.bit_rate:
+                video_br = float( video.bit_rate )
+            else:
+                print 'Missing video bit rate info, setting it to (total - audio)'
+                print '  Total bit rate:', total_br/1e6, 'Mbps'
+                print '  Video bit rate: N/A'
+                print '  Audio bit rate:', audio_br/1e3, 'kbps'
+                print '  Audio channels:', int(channels)
+                video_br = total_br - audio_br
+                print '  Fixed video bit rate:', video_br/1e6, 'Mbps'
+
+            # check for corrupt total bit rate
+            corrupt_total_br = False
+            if video_br > 1.1 * total_br:
+                corrupt_total_br = True
+                print 'Total bit rate info is potentially corrupt. Assuming video and audio bit rates to be correct...'
                 print '  Total bit rate:', total_br/1e6, 'Mbps'
                 print '  Video bit rate:', video_br/1e6, 'Mbps'
                 print '  Audio bit rate:', audio_br/1e3, 'kbps'
-                video_br = total_br - audio_br
-                print '  Fixed video bit rate:', video_br/1e6, 'Mbps'
+                print '  Audio channels:', int(channels)
 
             # figure out transcoding and repacking status
             copy_video = False
             if video_br < v_br:
-                if not corrupt_video_br:
-                    print 'File already meets the video bit rate requirements. Video stream will be repacked...'
-                    print '  Video bit rate:', video_br/1e6, 'Mbps'
-                    copy_video = True
-                else:
-                    bv = ( '%.0f' %  video_br )
+                print 'File already meets the video bit rate requirements. Video stream will be repacked...'
+                print '  Video bit rate:', video_br/1e6, 'Mbps'
+                copy_video = True
 
             copy_audio = False
             if audio_br < (channels * a_br)/2.:
