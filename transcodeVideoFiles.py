@@ -53,7 +53,7 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
         if general:
             #print [attr for attr in dir(general) if not attr.startswith('__')]
             if general.comment:
-                if 'ffmpeg transcode/repack' in general.comment:
+                if 'ffmpeg: ' in general.comment:
                     print 'File', f, 'already transcoded. Skipping...'
                     continue
             if general.overall_bit_rate:
@@ -162,8 +162,12 @@ def main():
                         help="Perform a transcoding dry run",
                         default=False)
 
-    parser.add_option("-y", "--yadif", dest="yadif", action='store_true',
+    parser.add_option("--deint", dest="deint", action='store_true',
                       help="Enable deinterlacing",
+                      default=False)
+    
+    parser.add_option("--size", dest="size", action='store_true',
+                      help="Check transcoded file size",
                       default=False)
 
     (options, args) = parser.parse_args()
@@ -198,7 +202,8 @@ def main():
     a_br = 140e3
 
     extensions = ('.mp4', '.m4v', '.mov', '.3gp', '.3g2', '.mpg', '.mpeg', '.mj2', '.wmv', '.avi', '.webm', '.mkv')
-    #extensions += ('.ts', '.mts')
+    extensions_ts = ('.ts', '.mts')
+    #extensions += extensions_ts
 
     video_files = []
     selected_files = []
@@ -278,6 +283,7 @@ def main():
         totalSizeAfter = 0
 
         file_list_processed = open('video_files_processed.txt','w')
+        file_list_failed = open('video_files_failed.txt','w')
 
         for counter, f in enumerate(selected_files, 1):
 
@@ -344,23 +350,40 @@ def main():
             # figure out transcoding and repacking status
             copy_video = False
             if video_br < v_br:
-                print 'File already meets the video bit rate requirements. Video stream will be repacked...'
+                print 'File already meets the video bit rate and codec requirements. Video stream will be repacked...'
                 print '  Video bit rate:', video_br/1e6, 'Mbps'
                 copy_video = True
 
+            unsupported_audio_codecs = ['raw', 'samr']
+            audio_codec = ''
+            if audio.codec_id:
+                audio_codec = audio.codec_id.strip()
+            elif audio.id:
+                audio_codec = audio.id.strip()
             copy_audio = False
-            if audio_br < (channels * a_br)/2.:
-                print 'File already meets the audio bit rate requirements. Audio stream will be repacked...'
+            if audio_br < (channels * a_br)/2. and audio_codec not in unsupported_audio_codecs:
+                print 'File already meets the audio bit rate and codec requirements. Audio stream will be repacked...'
                 print '  Audio channels:', int(channels)
                 print '  Audio bit rate:', audio_br/1e3, 'kbps'
                 copy_audio = True
 
+            # comment
+            comment = 'ffmpeg: video and audio transcode'
+            if copy_video and copy_audio:
+                comment = 'ffmpeg: video and audio repack'
+            elif (copy_video and not copy_audio) or (not copy_video and copy_audio):
+                comment = 'ffmpeg: video ' + ('repack' if copy_video else 'transcode') + ', audio ' + ('repack' if copy_audio else 'transcode')
+
             # video encoding options
             video_filt = ''
-            if options.yadif:
-                video_filt = '-vf yadif=mode=1:parity=-1:deint=0 '
-            video_options_1st_pass = '%s-c:v libx265 -b:v %s -x265-params pass=1' % (video_filt, bv)
-            video_options = '%s-c:v libx265 -b:v %s -x265-params pass=2' % (video_filt, bv)
+            if options.deint:
+                video_filt = '-vf "yadif=0:-1:0" '
+            # workaround for AVI files (by default pix_fmt=yuvj422p is used which results in strange artifacts in a x265-encoded video stream)
+            pix_fmt = ''
+            if filename.lower().endswith('.avi'):
+                pix_fmt = ' -pix_fmt yuv422p'
+            video_options_1st_pass = '%s-c:v libx265 -b:v %s -x265-params pass=1%s' % (video_filt, bv, pix_fmt)
+            video_options = '%s-c:v libx265 -b:v %s -x265-params pass=2%s' % (video_filt, bv, pix_fmt)
             if copy_video:
                 video_options = '-c:v copy'
 
@@ -371,11 +394,11 @@ def main():
 
             fmt = 'mp4'
             extensions = ('.mp4', '.m4v', '.mov', '.3gp', '.3g2')
-            if ( not copy_video and not copy_audio ) or filename.lower().endswith(extensions):
+            if ( not copy_video and not copy_audio and not filename.lower().endswith(extensions_ts) ) or filename.lower().endswith(extensions):
                 filename = os.path.splitext(filename)[0] + '.mp4'
             else:
                 filename = os.path.splitext(filename)[0] + '.mkv'
-                fmt = 'mkv'
+                fmt = 'matroska'
 
             dest_path = os.path.join(dest_folder, filename)
 
@@ -387,37 +410,45 @@ def main():
                     r = os.system(cmd)
                     if r:
                         print 'ffmpeg failed! Skipping...'
+                        file_list_failed.write(f[0] + '\n')
                         continue
 
-            cmd = 'ffmpeg -i \"%s\" %s %s -map_metadata 0 -metadata comment="ffmpeg transcode/repack" -y \"%s\"' % (f[0], video_options, audio_options, dest_path)
+            cmd = 'ffmpeg -i \"%s\" %s %s -map_metadata 0 -metadata comment="%s" -y \"%s\"' % (f[0], video_options, audio_options, comment, dest_path)
             print ''
             print cmd
             print ''
             if not options.dry_run:
                 r = os.system(cmd)
-                if r:
+                if r and f[0].lower().endswith('.mpg'):
                     print 'ffmpeg failed! Attempting recovery...'
-                    cmd = cmd.replace('ffmpeg ', 'ffmpeg -fflags +genpts ')
+                    cmd = cmd.replace('ffmpeg -i', 'ffmpeg -fflags +genpts -i')
                     print ''
                     print cmd
                     print ''
                     r = os.system(cmd)
                     if r:
                         print 'ffmpeg failed again! Skipping...'
+                        file_list_failed.write(f[0] + '\n')
                         continue
 
             if not options.dry_run:
-                os.system('touch -r \"%s\" \"%s\"' % ( f[0], dest_path ) )
+                cmd = 'touch -r \"%s\" \"%s\"' % ( f[0], dest_path )
+                print ''
+                print cmd
+                print ''
+                os.system(cmd)
 
             file_list_processed.write(f[0] + ' : ' + dest_path + '\n')
 
             totalSizeBefore += f[1]
-            if not options.dry_run:
+            if not options.dry_run or options.size:
                 totalSizeAfter  += os.path.getsize( dest_path )
 
         file_list_processed.close()
+        file_list_failed.close()
 
         print '==============================================='
+        os.system('echo `date`')
         print ''
         print '\nTotal size before transcoding:', float(totalSizeBefore)/(1024.0**3), 'GB'
         print 'Total size before transcoding:', float(totalSizeAfter)/(1024.0**3), 'GB\n'
