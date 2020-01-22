@@ -123,7 +123,8 @@ def main():
             }
             video_filt = '-vf "' + rotation_lut[angle] + '" '
 
-            print comment
+            print 'Input file comment:', comment
+            print ''
             if 'video and audio repack' not in comment and 'video repack' not in comment:
                 print 'File does not contain a repacked video stream! Need to start from the original file with the following video filter:'
                 print ' ', video_filt
