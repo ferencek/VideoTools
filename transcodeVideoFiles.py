@@ -404,6 +404,7 @@ def main():
 
             if not copy_video:
                 cmd = 'ffmpeg -i \"%s\" %s -an -f %s -y /dev/null' % (f[0], video_options_1st_pass, fmt)
+                print ''
                 print cmd
                 print ''
                 if not options.dry_run:

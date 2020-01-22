@@ -19,6 +19,7 @@ def getTrack(mediaInfo, track_type):
 
 def touch(vfile, dest_path):
     cmd = 'touch -r \"%s\" \"%s\"' % ( vfile, dest_path )
+    print ''
     print cmd
     print ''
     os.system(cmd)
