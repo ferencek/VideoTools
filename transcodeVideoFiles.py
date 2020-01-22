@@ -319,7 +319,7 @@ def main():
 
             print '==============================================='
             os.system('echo `date`')
-            print 'Transcoding file', counter
+            print 'Processing file', counter
             print f[0]
             print ''
 
@@ -409,7 +409,7 @@ def main():
                 if not options.dry_run:
                     r = os.system(cmd)
                     if r:
-                        print 'ffmpeg failed! Skipping...'
+                        print 'ffmpeg 1st pass failed! Skipping...'
                         file_list_failed.write(f[0] + '\n')
                         continue
 
@@ -419,15 +419,23 @@ def main():
             print ''
             if not options.dry_run:
                 r = os.system(cmd)
-                if r and f[0].lower().endswith('.mpg'):
-                    print 'ffmpeg failed! Attempting recovery...'
-                    cmd = cmd.replace('ffmpeg -i', 'ffmpeg -fflags +genpts -i')
-                    print ''
-                    print cmd
-                    print ''
-                    r = os.system(cmd)
-                    if r:
-                        print 'ffmpeg failed again! Skipping...'
+                if r:
+                    if f[0].lower().endswith('.mpg'):
+                        print 'ffmpeg failed! Attempting recovery...'
+                        cmd = cmd.replace('ffmpeg -i', 'ffmpeg -fflags +genpts -i')
+                        print ''
+                        print cmd
+                        print ''
+                        r = os.system(cmd)
+                        if r:
+                            print 'ffmpeg failed again! Skipping...'
+                            file_list_failed.write(f[0] + '\n')
+                            continue
+                    else:
+                        if not copy_video:
+                            print 'ffmpeg 2nd pass failed! Skipping...'
+                        else:
+                            print 'ffmpeg failed! Skipping...'
                         file_list_failed.write(f[0] + '\n')
                         continue
 
