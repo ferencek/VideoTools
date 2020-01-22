@@ -1,10 +1,27 @@
 import os
 import sys
+import shlex, subprocess
+from pymediainfo import MediaInfo
 from optparse import OptionParser
 
 # character encoding hack
 reload(sys)
 sys.setdefaultencoding('utf8')
+
+
+def getTrack(mediaInfo, track_type):
+
+    for track in mediaInfo.tracks:
+        if track.track_type == track_type:
+            return track
+
+    return None
+
+def touch(vfile, dest_path):
+    cmd = 'touch -r \"%s\" \"%s\"' % ( vfile, dest_path )
+    print cmd
+    print ''
+    os.system(cmd)
 
 
 def main():
@@ -15,7 +32,7 @@ def main():
     parser = OptionParser(usage=usage)
 
     parser.add_option("-l", "--list", dest="flist",
-                      help="List of video files and rotation angles (This parameter is mandatory)",
+                      help="List of video files, rotation angles and conversion mode (This parameter is mandatory)",
                       metavar="LIST")
 
     parser.add_option("-n", "--dry_run", dest="dry_run", action="store_true",
@@ -31,36 +48,130 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    # define audio encoder
+    audio_enc = 'aac'
+    cmd = 'ffmpeg -encoders'
+    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if 'libfdk_aac' in out:
+        audio_enc = 'libfdk_aac'
+    #print audio_enc
+
     lines = file(options.flist).readlines()
+
+    pruned_lines = []
+    # skip commented out or empty lines
     for line in lines:
-        # skip commented out or empty lines
         if line.strip().startswith('#') or line.strip() == '':
             continue
-        sline = line.strip().split(':')
-        vfile = sline[0].strip()
-        angle = sline[1].strip()
-        #print vfile, angle
+        pruned_lines.append( line )
 
-        dest_folder = os.path.dirname(vfile).replace('/transcoded/', '/rotated/')
+    for counter, line in enumerate(pruned_lines, 1):
+        split_line = line.strip().split(':')
+        vfile, angle, mode = [split_line[i].strip() for i in (0, 1, 2)]
+        #print vfile, angle, mode
+
+        filename = os.path.basename(vfile)
+        dest_folder = ''
+        if '/transcoded/' in vfile:
+            dest_folder = os.path.dirname(vfile).replace('/transcoded/', '/rotated/')
+        elif '/original/' in vfile:
+            dest_folder = os.path.dirname(vfile).replace('/original/', '/original_rotated/')
+        else:
+            print 'Unexpected file path. Aborting'
+            sys.exit(2)
         #print dest_folder
 
         if not os.path.exists(dest_folder) and not options.dry_run:
             os.system('mkdir -p \"%s\"' % dest_folder)
 
-        dest_path = vfile.replace('/transcoded/', '/rotated/')
+        dest_path = os.path.join(dest_folder, filename)
 
-        cmd = 'ffmpeg -i \"%s\" -c copy -map_metadata 0 -metadata:s:v:0 rotate="%s" -y \"%s\"' % (vfile, angle, dest_path)
+        print '==============================================='
+        os.system('echo `date`')
+        print 'Processing file', counter
+        print vfile
         print ''
-        print cmd
-        print ''
-        if not options.dry_run:
-            os.system(cmd)
 
-            cmd = 'touch -r \"%s\" \"%s\"' % ( vfile, dest_path )
+        if mode == 'repack':
+            cmd = 'ffmpeg -i \"%s\" -c copy -map_metadata 0 -metadata:s:v:0 rotate="%s" -y \"%s\"' % (vfile, angle, dest_path)
+            print cmd
+            print ''
+            if not options.dry_run:
+                r = os.system(cmd)
+                if r:
+                    print 'ffmpeg repacking failed! Skipping...'
+                    continue
+        elif mode == 'transcode':
+            cmd = 'mediainfo -f --Output=OLDXML \"%s\"' % vfile
+            p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            xml_mediaInfo, err = p.communicate()
+
+            mediaInfo = MediaInfo(xml_mediaInfo)
+
+            general = getTrack(mediaInfo, 'General')
+            audio   = getTrack(mediaInfo, 'Audio')
+            video   = getTrack(mediaInfo, 'Video')
+
+            comment  = general.comment
+            video_br = video.bit_rate
+
+            rotation_lut = {
+                "-90" : "transpose=1",
+                "90"  : "transpose=2",
+                "180" : "transpose=2,transpose=2"
+            }
+            video_filt = '-vf "' + rotation_lut[angle] + '" '
+
+            print comment
+            if 'video and audio repack' not in comment and 'video repack' not in comment:
+                print 'File does not contain a repacked video stream! Need to start from the original file with the following video filter:'
+                print ' ', video_filt
+                print 'Skipping...'
+                continue
+
+            # updated comment
+            new_comment = 'ffmpeg: video and audio transcode'
+            if 'audio repack' in comment:
+                new_comment = 'ffmpeg: video transcode, audio repack'
+
+            # video encoding options
+            video_options_1st_pass = '%s-c:v libx265 -b:v %s -x265-params pass=1' % (video_filt, video_br)
+            video_options = '%s-c:v libx265 -b:v %s -x265-params pass=2' % (video_filt, video_br)
+
+            fmt = 'mp4'
+            if vfile.lower().endswith('.mkv'):
+                fmt = 'matroska'
+
+            cmd = 'ffmpeg -i \"%s\" %s -an -f %s -y /dev/null' % (vfile, video_options_1st_pass, fmt)
+            print cmd
+            print ''
+            if not options.dry_run:
+                r = os.system(cmd)
+                if r:
+                    print 'ffmpeg 1st pass failed! Skipping...'
+                    continue
+
+            cmd = 'ffmpeg -i \"%s\" %s -c:a copy -map_metadata 0 -metadata comment="%s" -y \"%s\"' % (vfile, video_options, new_comment, dest_path)
             print ''
             print cmd
             print ''
-            os.system(cmd)
+            if not options.dry_run:
+                r = os.system(cmd)
+                if r:
+                    print 'ffmpeg 2nd pass failed! Skipping...'
+                    continue
+        else:
+            mode = None
+            print 'Unknown conversion mode. Nothing to do'
+
+        if not options.dry_run and mode:
+            touch(vfile, dest_path)
+
+    print '==============================================='
+    os.system('echo `date`')
+    print ''
+
 
 
 if __name__ == '__main__':
