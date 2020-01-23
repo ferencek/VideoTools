@@ -94,8 +94,18 @@ def main():
         print vfile
         print ''
 
+        cmd = 'mediainfo -f --Output=OLDXML \"%s\"' % vfile
+        p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        xml_mediaInfo, err = p.communicate()
+
+        mediaInfo = MediaInfo(xml_mediaInfo)
+
+        general = getTrack(mediaInfo, 'General')
+
         if mode == 'repack':
-            cmd = 'ffmpeg -i \"%s\" -c copy -map_metadata 0 -metadata:s:v:0 rotate="%s" -y \"%s\"' % (vfile, angle, dest_path)
+            comment = ( general.comment if general.comment else 'ffmpeg: video and audio repack' )
+
+            cmd = 'ffmpeg -i \"%s\" -c copy -map_metadata 0 -metadata:s:v:0 rotate="%s" -metadata comment="%s" -y \"%s\"' % (vfile, angle, comment, dest_path)
             print cmd
             print ''
             if not options.dry_run:
@@ -104,14 +114,6 @@ def main():
                     print 'ffmpeg repacking failed! Skipping...'
                     continue
         elif mode == 'transcode':
-            cmd = 'mediainfo -f --Output=OLDXML \"%s\"' % vfile
-            p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            xml_mediaInfo, err = p.communicate()
-
-            mediaInfo = MediaInfo(xml_mediaInfo)
-
-            general = getTrack(mediaInfo, 'General')
-            audio   = getTrack(mediaInfo, 'Audio')
             video   = getTrack(mediaInfo, 'Video')
 
             comment  = general.comment
