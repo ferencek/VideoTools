@@ -103,6 +103,7 @@ def main():
         general = getTrack(mediaInfo, 'General')
 
         if mode == 'repack':
+            # preserve old comment if already transcoded or add a comment if repacking is done for the first time
             comment = ( general.comment if general.comment else 'ffmpeg: video and audio repack' )
 
             cmd = 'ffmpeg -i \"%s\" -c copy -map_metadata 0 -metadata:s:v:0 rotate="%s" -metadata comment="%s" -y \"%s\"' % (vfile, angle, comment, dest_path)
