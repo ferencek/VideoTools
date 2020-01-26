@@ -165,7 +165,7 @@ def main():
     parser.add_option("--deint", dest="deint", action='store_true',
                       help="Enable deinterlacing",
                       default=False)
-    
+
     parser.add_option("--size", dest="size", action='store_true',
                       help="Check transcoded file size",
                       default=False)
