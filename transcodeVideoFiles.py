@@ -412,7 +412,7 @@ def main():
             dest_path = os.path.join(dest_folder, filename)
 
             if not copy_video:
-                cmd = 'ffmpeg -i \"%s\" %s -an -f %s -y /dev/null' % (f[0], video_options_1st_pass, fmt)
+                cmd = 'ffmpeg -i \"%s\" -vsync 0 %s -an -f %s -y /dev/null' % (f[0], video_options_1st_pass, fmt)
                 print ''
                 print cmd
                 print ''
@@ -423,7 +423,7 @@ def main():
                         file_list_failed.write(f[0] + '\n')
                         continue
 
-            cmd = 'ffmpeg -i \"%s\" %s %s -map_metadata 0 -metadata comment="%s" -y \"%s\"' % (f[0], video_options, audio_options, comment, dest_path)
+            cmd = 'ffmpeg -i \"%s\" -vsync 0 %s %s -map_metadata 0 -metadata comment="%s" -y \"%s\"' % (f[0], video_options, audio_options, comment, dest_path)
             print ''
             print cmd
             print ''
