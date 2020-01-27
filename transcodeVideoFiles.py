@@ -68,7 +68,7 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
             continue
 
         audio_br = 0.
-        channels = 2.
+        channels = 0.
 
         audio = getTrack(mediaInfo, 'Audio')
 
@@ -87,9 +87,8 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
                 os.system('mediainfo \"%s\"' % f)
                 continue
         else:
-            print 'Problem with finding audio stream for', f, 'Skipping...'
+            print 'Problem with finding audio stream for', f, 'Will be transcoded without an audio stream'
             os.system('mediainfo \"%s\"' % f)
-            continue
 
         video_br = 0.
 
@@ -108,7 +107,7 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
 
         # leave .mp4 and .mkv files that already meet the bit rate requirements untouched
         extensions = ('.mp4', '.mkv')
-        if checkBitRate and f.lower().endswith(extensions) and video.bit_rate and video_br < v_br and audio_br < (channels * a_br)/2.:
+        if checkBitRate and f.lower().endswith(extensions) and video.bit_rate and video_br < v_br and ( (audio and audio_br < (channels * a_br)/2.) or not audio ):
             print 'File', f, 'already meets the bit rate requirements. Skipping...'
             print '  Video bit rate:', video_br/1e6, 'Mbps'
             print '  Audio channels:', int(channels)
@@ -300,8 +299,8 @@ def main():
             video     = getTrack(mediaInfo, 'Video')
 
             total_br = float( general.overall_bit_rate )
-            audio_br = float( audio.bit_rate )
-            channels = float( audio.channel_s )
+            audio_br = ( float( audio.bit_rate ) if (audio and audio.bit_rate) else 0. )
+            channels = ( float( audio.channel_s ) if (audio and audio.channel_s) else 0. )
 
             # if mono, reduce the audio bit rate
             if int( channels ) == 1:
@@ -356,12 +355,13 @@ def main():
 
             unsupported_audio_codecs = ['raw', 'samr']
             audio_codec = ''
-            if audio.codec_id:
-                audio_codec = audio.codec_id.strip()
-            elif audio.id:
-                audio_codec = audio.id.strip()
+            if audio:
+                if audio.codec_id:
+                    audio_codec = audio.codec_id.strip()
+                elif audio.id:
+                    audio_codec = audio.id.strip()
             copy_audio = False
-            if audio_br < (channels * a_br)/2. and audio_codec not in unsupported_audio_codecs:
+            if audio and audio_br < (channels * a_br)/2. and audio_codec not in unsupported_audio_codecs:
                 print 'File already meets the audio bit rate and codec requirements. Audio stream will be repacked...'
                 print '  Audio channels:', int(channels)
                 print '  Audio bit rate:', audio_br/1e3, 'kbps'
@@ -369,10 +369,13 @@ def main():
 
             # comment
             comment = 'ffmpeg: video and audio transcode'
-            if copy_video and copy_audio:
-                comment = 'ffmpeg: video and audio repack'
-            elif (copy_video and not copy_audio) or (not copy_video and copy_audio):
-                comment = 'ffmpeg: video ' + ('repack' if copy_video else 'transcode') + ', audio ' + ('repack' if copy_audio else 'transcode')
+            if audio:
+                if copy_video and copy_audio:
+                    comment = 'ffmpeg: video and audio repack'
+                elif (copy_video and not copy_audio) or (not copy_video and copy_audio):
+                    comment = 'ffmpeg: video ' + ('repack' if copy_video else 'transcode') + ', audio ' + ('repack' if copy_audio else 'transcode')
+            else:
+                comment = 'ffmpeg: video ' + ('repack' if copy_video else 'transcode') + ', no audio'
 
             # video encoding options
             video_filt = ''
@@ -388,9 +391,12 @@ def main():
                 video_options = '-c:v copy'
 
             # audio encoding options
-            audio_options = '-c:a %s -b:a %s' % (audio_enc, ba)
-            if copy_audio:
-                audio_options = '-c:a copy'
+            if audio:
+                audio_options = '-c:a %s -b:a %s' % (audio_enc, ba)
+                if copy_audio:
+                    audio_options = '-c:a copy'
+            else:
+                audio_options = '-an'
 
             fmt = 'mp4'
             extensions = ('.mp4', '.m4v', '.mov', '.3gp', '.3g2')
