@@ -384,10 +384,11 @@ def main():
             # workaround for files with JPEG-based codecs (by default pix_fmt=yuvj422p is used which results in strange artifacts in an x265-encoded video stream)
             pix_fmt = ''
             jpeg_codecs = ['jpeg', 'mjpg']
-            video_codec = video.codec_id.lower()
-            chroma_subsampling = video.chroma_subsampling.strip()
-            if video_codec in jpeg_codecs and chroma_subsampling == '4:2:2':
-                pix_fmt = ' -pix_fmt yuv422p'
+            if not copy_video:
+                video_codec = (video.codec_id.lower() if video.codec_id else '')
+                chroma_subsampling = (video.chroma_subsampling.strip() if video.chroma_subsampling else '')
+                if video_codec in jpeg_codecs and chroma_subsampling == '4:2:2':
+                    pix_fmt = ' -pix_fmt yuv422p'
             video_options_1st_pass = '%s-c:v libx265 -b:v %s -x265-params pass=1%s' % (video_filt, bv, pix_fmt)
             video_options = '%s-c:v libx265 -b:v %s -x265-params pass=2%s' % (video_filt, bv, pix_fmt)
             if copy_video:
