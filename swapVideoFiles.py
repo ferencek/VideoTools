@@ -4,7 +4,7 @@ from optparse import OptionParser
 
 
 # usage description
-usage = "Usage: python %prog [options] \nExample: python %prog -s /home/ferencek/Pictures/ -d test_transcode"
+usage = "Usage: python %prog [options]"
 
 # input parameters
 parser = OptionParser(usage=usage)
@@ -71,7 +71,7 @@ for counter, line in enumerate(pruned_lines, 1):
     #print dest_folder_transcoded
 
     if not os.path.exists(dest_folder_transcoded):
-        print 'Destination file for the transcoded file not found. This is not expected. Aborting'
+        print 'Destination folder for the transcoded file not found. This is not expected. Aborting'
         sys.exit(2)
 
     filename_transcoded = os.path.basename(transcoded_file)
