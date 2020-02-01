@@ -75,9 +75,9 @@ def main():
         filename = os.path.basename(vfile)
         dest_folder = ''
         if '/transcoded/' in vfile:
-            dest_folder = os.path.dirname(vfile).replace('/transcoded/', '/rotated/')
+            dest_folder = os.path.dirname(vfile).replace('/transcoded', '/rotated')
         elif '/original/' in vfile:
-            dest_folder = os.path.dirname(vfile).replace('/original/', '/original_rotated/')
+            dest_folder = os.path.dirname(vfile).replace('/original', '/original_rotated')
         else:
             print 'Unexpected file path. Aborting'
             sys.exit(2)
