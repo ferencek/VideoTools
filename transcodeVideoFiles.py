@@ -470,7 +470,7 @@ def main():
         os.system('echo `date`')
         print ''
         print '\nTotal size before transcoding:', float(totalSizeBefore)/(1024.0**3), 'GB'
-        print 'Total size before transcoding:', float(totalSizeAfter)/(1024.0**3), 'GB\n'
+        print 'Total size after transcoding:', float(totalSizeAfter)/(1024.0**3), 'GB\n'
 
 
 if __name__ == '__main__':
