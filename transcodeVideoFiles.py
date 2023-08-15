@@ -165,6 +165,10 @@ def main():
     parser.add_option("--size", dest="size", action='store_true',
                       help="Check transcoded file size",
                       default=False)
+    
+    parser.add_option("-v", "--video_br", dest="video_br",
+                      help="Video bitrate (1 Mbps=1M, 2 Mbps=2M, etc.)",
+                      metavar="BITRATE", default='4M')
 
     (options, args) = parser.parse_args()
 
@@ -174,7 +178,14 @@ def main():
         print('')
         parser.print_help()
         sys.exit(1)
-
+        
+    # check that video bitrate is provided in the correct format
+    if not ('M' in options.video_br):
+        print('Video bitrate not provided in the correct format')
+        print('')
+        parser.print_help()
+        sys.exit(1)
+    
     # define audio encoder
     audio_enc = 'aac'
     cmd = 'ffmpeg -encoders'
@@ -193,7 +204,7 @@ def main():
 
     # bit rate thresholds (in bps)
     # video bit rate
-    v_br = 4.1e6
+    v_br = (float(options.video_br.replace('M','')) + 0.1)*1e6
     # audio bit rate
     a_br = 140e3
 
@@ -287,7 +298,7 @@ def main():
 
             filename = os.path.basename(f[0])
 
-            bv = '4M'
+            bv = options.video_br
             ba = '128k'
 
             mediaInfo = MediaInfo(f[2])
