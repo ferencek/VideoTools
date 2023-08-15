@@ -457,7 +457,7 @@ def main():
             file_list_processed.write(f[0] + ' : ' + dest_path + '\n')
 
             totalSizeBefore += f[1]
-            if not options.dry_run or options.size:
+            if not options.dry_run and options.size:
                 totalSizeAfter  += os.path.getsize( dest_path )
 
         file_list_processed.close()
