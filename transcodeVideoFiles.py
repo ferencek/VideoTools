@@ -5,10 +5,7 @@ import datetime
 import shlex, subprocess
 from pymediainfo import MediaInfo
 from optparse import OptionParser
-
-# character encoding hack
-reload(sys)
-sys.setdefaultencoding('utf8')
+import importlib
 
 
 def getTrack(mediaInfo, track_type):
@@ -43,7 +40,7 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
         p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         xml_mediaInfo, err = p.communicate()
 
-        mediaInfo = MediaInfo(xml_mediaInfo)
+        mediaInfo = MediaInfo(xml_mediaInfo.decode())
 
         general = getTrack(mediaInfo, 'General')
 
@@ -51,19 +48,19 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
 
         # leave already transcoded files untouched
         if general:
-            #print [attr for attr in dir(general) if not attr.startswith('__')]
+            #print([attr for attr in dir(general) if not attr.startswith('__')])
             if general.comment:
                 if 'ffmpeg: ' in general.comment:
-                    print 'File', f, 'already transcoded. Skipping...'
+                    print('File', f, 'already transcoded. Skipping...')
                     continue
             if general.overall_bit_rate:
                 total_br = float( general.overall_bit_rate )
             else:
-                print 'Missing total bit rate info for', f, 'Skipping...'
+                print('Missing total bit rate info for', f, 'Skipping...')
                 os.system('mediainfo \"%s\"' % f)
                 continue
         else:
-            print 'Problem with getting general info for', f, 'Skipping...'
+            print('Problem with getting general info for', f, 'Skipping...')
             os.system('mediainfo \"%s\"' % f)
             continue
 
@@ -73,21 +70,21 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
         audio = getTrack(mediaInfo, 'Audio')
 
         if audio:
-            #print [attr for attr in dir(audio) if not attr.startswith('__')]
+            #print([attr for attr in dir(audio) if not attr.startswith('__')])
             if audio.bit_rate:
                 audio_br = float( audio.bit_rate )
             else:
-                print 'Missing audio bit rate info for', f, 'Skipping...'
+                print('Missing audio bit rate info for', f, 'Skipping...')
                 os.system('mediainfo \"%s\"' % f)
                 continue
             if audio.channel_s:
                 channels = float( audio.channel_s )
             else:
-                print 'Missing audio channels info for', f, 'Skipping...'
+                print('Missing audio channels info for', f, 'Skipping...')
                 os.system('mediainfo \"%s\"' % f)
                 continue
         else:
-            print 'Problem with finding audio stream for', f, 'Will be transcoded without an audio stream'
+            print('Problem with finding audio stream for', f, 'Will be transcoded without an audio stream')
             os.system('mediainfo \"%s\"' % f)
 
         video_br = 0.
@@ -95,41 +92,41 @@ def selectFiles(video_files, source, files, checkBitRate=False, v_br=0.0, a_br=0
         video = getTrack(mediaInfo, 'Video')
 
         if video:
-            #print [attr for attr in dir(video) if not attr.startswith('__')]
+            #print([attr for attr in dir(video) if not attr.startswith('__')])
             if video.bit_rate:
                 video_br = float( video.bit_rate )
             else:
-                print 'Missing video bit rate info for', f
+                print('Missing video bit rate info for', f)
         else:
-            print 'Problem with finding video stream for', f, 'Skipping...'
+            print('Problem with finding video stream for', f, 'Skipping...')
             os.system('mediainfo \"%s\"' % f)
             continue
 
         # leave .mp4 and .mkv files that already meet the bit rate requirements untouched
         extensions = ('.mp4', '.mkv')
         if checkBitRate and f.lower().endswith(extensions) and video.bit_rate and video_br < v_br and ( (audio and audio_br < (channels * a_br)/2.) or not audio ):
-            print 'File', f, 'already meets the bit rate requirements. Skipping...'
-            print '  Video bit rate:', video_br/1e6, 'Mbps'
-            print '  Audio channels:', int(channels)
-            print '  Audio bit rate:', audio_br/1e3, 'kbps'
+            print('File', f, 'already meets the bit rate requirements. Skipping...')
+            print('  Video bit rate:', video_br/1e6, 'Mbps')
+            print('  Audio channels:', int(channels))
+            print('  Audio bit rate:', audio_br/1e3, 'kbps')
             continue
 
         # detect UHD videos
         if video.width:
             if int( video.width ) > 1920:
-                print 'File', f, 'has width greater than 1920 pixels:', video.width
+                print('File', f, 'has width greater than 1920 pixels:', video.width)
         else:
-            print 'Problem with getting video width info for', f
+            print('Problem with getting video width info for', f)
             os.system('mediainfo \"%s\"' % f)
 
         # duration stored in ms, converting to s
         if general.duration:
             total_duration += float( general.duration ) / 1e3
         else:
-            print 'Problem with getting duration info for', f, 'Skipping...'
+            print('Problem with getting duration info for', f, 'Skipping...')
             os.system('mediainfo \"%s\"' % f)
             continue
-        files.append([f, os.path.getsize(f), xml_mediaInfo])
+        files.append([f, os.path.getsize(f), xml_mediaInfo.decode()])
 
     return total_duration
 
@@ -173,8 +170,8 @@ def main():
 
     # make sure all necessary input parameters are provided
     if not (options.source and options.destination):
-        print 'Mandatory parameters missing'
-        print ''
+        print('Mandatory parameters missing')
+        print('')
         parser.print_help()
         sys.exit(1)
 
@@ -183,9 +180,9 @@ def main():
     cmd = 'ffmpeg -encoders'
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
-    if 'libfdk_aac' in out:
+    if b'libfdk_aac' in out:
         audio_enc = 'libfdk_aac'
-    #print audio_enc
+    #print(audio_enc)
 
     source = options.source
     # make sure the source path is defined as an absolute path
@@ -214,27 +211,27 @@ def main():
         with open('video_files_all.pkl', 'rb') as fpkl:
             (path, video_files) = pickle.load(fpkl)
             if not path.rstrip('/') in source:
-                print 'Source folder', source, 'different from the cached folder', path
-                print 'Source folder will be rescanned...'
-                print ''
+                print('Source folder', source, 'different from the cached folder', path)
+                print('Source folder will be rescanned...')
+                print('')
                 shouldRebuild = True
                 del video_files [:]
             else:
-                print 'Pickled list of all video files loaded'
+                print('Pickled list of all video files loaded')
 
     if not os.path.exists('video_files_all.pkl') or shouldRebuild:
-        print 'Building pickled list of all video files...'
+        print('Building pickled list of all video files...')
         with open('video_files_all.pkl', 'wb') as fpkl:
             collectFiles(source, extensions, video_files)
             dump = (source, video_files)
             pickle.dump(dump, fpkl)
-        print 'Pickled list of all video files built'
+        print('Pickled list of all video files built')
         file_list_all = open('video_files_all.txt','w')
         for v in video_files:
             file_list_all.write(v+'\n')
         file_list_all.close()
 
-    print '\nFound', len(video_files), 'video files in', source, '\n'
+    print('\nFound', len(video_files), 'video files in', source, '\n')
 
     if os.path.exists('video_files_selected.pkl') and not shouldRebuild:
         with open('video_files_selected.pkl', 'rb') as fpkl:
@@ -244,20 +241,20 @@ def main():
                 del selected_files [:]
                 del selected_files_list [:]
             else:
-                print 'Pickled list of selected video files loaded'
+                print('Pickled list of selected video files loaded')
 
     if os.path.exists('video_files_selected.txt') and not shouldRebuild:
-        with open('video_files_selected.txt', 'rb') as ftxt:
+        with open('video_files_selected.txt', 'r') as ftxt:
             selected_files_list = ftxt.read().splitlines()
-            #print selected_files_list
+            #print(selected_files_list)
 
     if not os.path.exists('video_files_selected.pkl') or shouldRebuild:
-        print 'Building pickled list of selected video files...'
+        print('Building pickled list of selected video files...')
         with open('video_files_selected.pkl', 'wb') as fpkl:
             total_duration = selectFiles(video_files, source, selected_files, checkBitRate=True, v_br=v_br, a_br=a_br)
             dump = (source, total_duration, selected_files)
             pickle.dump(dump, fpkl)
-        print 'Pickled list of selected video files built'
+        print('Pickled list of selected video files built')
         for v in selected_files:
             selected_files_list.append(v[0])
         file_list_selected = open('video_files_selected.txt','w')
@@ -270,7 +267,7 @@ def main():
         file_list_selected.close()
         file_list_skipped.close()
 
-    print '\nSelected', len(selected_files), 'video files in', source, 'with a total duration of', str(datetime.timedelta(seconds=total_duration)), '\n'
+    print('\nSelected', len(selected_files), 'video files in', source, 'with a total duration of', str(datetime.timedelta(seconds=total_duration)), '\n')
 
 
     if options.transcode:
@@ -311,16 +308,16 @@ def main():
                 destination = os.path.join( os.path.abspath('.'), destination )
 
             dest_folder = os.path.join( destination, os.path.dirname(f[0])[len(source_prefix):] )
-            #print dest_folder
+            #print(dest_folder)
 
             if not os.path.exists(dest_folder) and not options.dry_run:
                 os.system('mkdir -p \"%s\"' % dest_folder)
 
-            print '==============================================='
+            print('===============================================')
             os.system('echo `date`')
-            print 'Processing file', counter
-            print f[0]
-            print ''
+            print('Processing file', counter)
+            print(f[0])
+            print('')
 
             video_br = 0.
 
@@ -328,29 +325,29 @@ def main():
             if video.bit_rate:
                 video_br = float( video.bit_rate )
             else:
-                print 'Missing video bit rate info, setting it to (total - audio)'
-                print '  Total bit rate:', total_br/1e6, 'Mbps'
-                print '  Video bit rate: N/A'
-                print '  Audio bit rate:', audio_br/1e3, 'kbps'
-                print '  Audio channels:', int(channels)
+                print('Missing video bit rate info, setting it to (total - audio)')
+                print('  Total bit rate:', total_br/1e6, 'Mbps')
+                print('  Video bit rate: N/A')
+                print('  Audio bit rate:', audio_br/1e3, 'kbps')
+                print('  Audio channels:', int(channels))
                 video_br = total_br - audio_br
-                print '  Fixed video bit rate:', video_br/1e6, 'Mbps'
+                print('  Fixed video bit rate:', video_br/1e6, 'Mbps')
 
             # check for corrupt total bit rate
             corrupt_total_br = False
             if video_br > 1.1 * total_br:
                 corrupt_total_br = True
-                print 'Total bit rate info is potentially corrupt. Assuming video and audio bit rates to be correct...'
-                print '  Total bit rate:', total_br/1e6, 'Mbps'
-                print '  Video bit rate:', video_br/1e6, 'Mbps'
-                print '  Audio bit rate:', audio_br/1e3, 'kbps'
-                print '  Audio channels:', int(channels)
+                print('Total bit rate info is potentially corrupt. Assuming video and audio bit rates to be correct...')
+                print('  Total bit rate:', total_br/1e6, 'Mbps')
+                print('  Video bit rate:', video_br/1e6, 'Mbps')
+                print('  Audio bit rate:', audio_br/1e3, 'kbps')
+                print('  Audio channels:', int(channels))
 
             # figure out transcoding and repacking status
             copy_video = False
             if video_br < v_br:
-                print 'File already meets the video bit rate and codec requirements. Video stream will be repacked...'
-                print '  Video bit rate:', video_br/1e6, 'Mbps'
+                print('File already meets the video bit rate and codec requirements. Video stream will be repacked...')
+                print('  Video bit rate:', video_br/1e6, 'Mbps')
                 copy_video = True
 
             unsupported_audio_codecs = ['raw', 'samr']
@@ -362,9 +359,9 @@ def main():
                     audio_codec = audio.id.strip()
             copy_audio = False
             if audio and audio_br < (channels * a_br)/2. and audio_codec not in unsupported_audio_codecs:
-                print 'File already meets the audio bit rate and codec requirements. Audio stream will be repacked...'
-                print '  Audio channels:', int(channels)
-                print '  Audio bit rate:', audio_br/1e3, 'kbps'
+                print('File already meets the audio bit rate and codec requirements. Audio stream will be repacked...')
+                print('  Audio channels:', int(channels))
+                print('  Audio bit rate:', audio_br/1e3, 'kbps')
                 copy_audio = True
 
             # comment
@@ -414,47 +411,47 @@ def main():
 
             if not copy_video:
                 cmd = 'ffmpeg -i \"%s\" -vsync 0 %s -an -f %s -y /dev/null' % (f[0], video_options_1st_pass, fmt)
-                print ''
-                print cmd
-                print ''
+                print('')
+                print(cmd)
+                print('')
                 if not options.dry_run:
                     r = os.system(cmd)
                     if r:
-                        print 'ffmpeg 1st pass failed! Skipping...'
+                        print('ffmpeg 1st pass failed! Skipping...')
                         file_list_failed.write(f[0] + '\n')
                         continue
 
             cmd = 'ffmpeg -i \"%s\" -vsync 0 %s %s -map_metadata 0 -metadata comment="%s" -y \"%s\"' % (f[0], video_options, audio_options, comment, dest_path)
-            print ''
-            print cmd
-            print ''
+            print('')
+            print(cmd)
+            print('')
             if not options.dry_run:
                 r = os.system(cmd)
                 if r:
                     if f[0].lower().endswith('.mpg'):
-                        print 'ffmpeg failed! Attempting recovery...'
+                        print('ffmpeg failed! Attempting recovery...')
                         cmd = cmd.replace('ffmpeg -i', 'ffmpeg -fflags +genpts -i')
-                        print ''
-                        print cmd
-                        print ''
+                        print('')
+                        print(cmd)
+                        print('')
                         r = os.system(cmd)
                         if r:
-                            print 'ffmpeg failed again! Skipping...'
+                            print('ffmpeg failed again! Skipping...')
                             file_list_failed.write(f[0] + '\n')
                             continue
                     else:
                         if not copy_video:
-                            print 'ffmpeg 2nd pass failed! Skipping...'
+                            print('ffmpeg 2nd pass failed! Skipping...')
                         else:
-                            print 'ffmpeg failed! Skipping...'
+                            print('ffmpeg failed! Skipping...')
                         file_list_failed.write(f[0] + '\n')
                         continue
 
             if not options.dry_run:
                 cmd = 'touch -r \"%s\" \"%s\"' % ( f[0], dest_path )
-                print ''
-                print cmd
-                print ''
+                print('')
+                print(cmd)
+                print('')
                 os.system(cmd)
 
             file_list_processed.write(f[0] + ' : ' + dest_path + '\n')
@@ -466,11 +463,11 @@ def main():
         file_list_processed.close()
         file_list_failed.close()
 
-        print '==============================================='
+        print('===============================================')
         os.system('echo `date`')
-        print ''
-        print '\nTotal size before transcoding:', float(totalSizeBefore)/(1024.0**3), 'GB'
-        print 'Total size after transcoding:', float(totalSizeAfter)/(1024.0**3), 'GB\n'
+        print('')
+        print('\nTotal size before transcoding:', float(totalSizeBefore)/(1024.0**3), 'GB')
+        print('Total size after transcoding:', float(totalSizeAfter)/(1024.0**3), 'GB\n')
 
 
 if __name__ == '__main__':

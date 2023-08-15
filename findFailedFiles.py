@@ -20,18 +20,18 @@ def findFailedFiles(path):
     #for line in lines:
         #failed_files.append(line.strip())
 
-    #print selected_files
-    #print ''
-    #print processed_files
-    #print ''
-    #print failed_files
+    #print(selected_files)
+    #print('')
+    #print(processed_files)
+    #print('')
+    #print(failed_files)
 
     for f in selected_files:
-        #print f
+        #print(f)
         if f not in processed_files:
-            print f
+            print(f)
         #if f not in processed_files and f not in failed_files:
-            #print f
+            #print(f)
 
 
 def main():
@@ -49,8 +49,8 @@ def main():
 
     # make sure all necessary input parameters are provided
     if not options.path:
-        print 'Mandatory parameters missing'
-        print ''
+        print('Mandatory parameters missing')
+        print('')
         parser.print_help()
         sys.exit(1)
 

@@ -39,24 +39,24 @@ for counter, line in enumerate(pruned_lines, 1):
 
     transcoded_file = split_line[1].strip().replace('/hdd-data/ferencek/Videos/Workshop/Pictures/', '/media/ferencek/Backup/transcoding/Pictures/')
 
-    #print original_file, transcoded_file
+    #print(original_file, transcoded_file)
 
-    print '==============================================='
-    print 'Processing file', counter
-    print original_file
-    print ''
+    print('===============================================')
+    print('Processing file', counter)
+    print(original_file)
+    print('')
 
     # check that the files exist before attempting to move/copy them
     if not os.path.exists(original_file):
-        print 'Original file', original_file, 'missing'
+        print('Original file', original_file, 'missing')
         sys.exit(1)
     if not os.path.exists(transcoded_file):
-        print 'New file', transcoded_file, 'missing'
+        print('New file', transcoded_file, 'missing')
         sys.exit(1)
 
     # check if the new directory for original files exists and create it if necessary
     dest_folder_original = os.path.join( original_destination, os.path.dirname(original_file)[len(original_source):] )
-    #print dest_folder_original
+    #print(dest_folder_original)
 
     if not os.path.exists(dest_folder_original):
         if not options.dry_run:
@@ -68,10 +68,10 @@ for counter, line in enumerate(pruned_lines, 1):
 
 
     dest_folder_transcoded = os.path.join( original_source, os.path.dirname(transcoded_file)[len(transcoded_source):] )
-    #print dest_folder_transcoded
+    #print(dest_folder_transcoded)
 
     if not os.path.exists(dest_folder_transcoded):
-        print 'Destination folder for the transcoded file not found. This is not expected. Aborting'
+        print('Destination folder for the transcoded file not found. This is not expected. Aborting')
         sys.exit(2)
 
     filename_transcoded = os.path.basename(transcoded_file)
@@ -80,15 +80,15 @@ for counter, line in enumerate(pruned_lines, 1):
 
 
     cmd = 'mv -v \"%s\" \"%s\"' % (original_file, dest_path_original)
-    print cmd
+    print(cmd)
     if not options.dry_run:
         os.system(cmd)
-    print ''
+    print('')
 
     cmd = 'mv -v \"%s\" \"%s\"' % (transcoded_file, dest_path_transcoded)
-    print cmd
+    print(cmd)
     if not options.dry_run:
         os.system(cmd)
-    print ''
+    print('')
 
-print '==============================================='
+print('===============================================')
