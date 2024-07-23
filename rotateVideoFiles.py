@@ -69,14 +69,7 @@ def main():
         #print(vfile, angle, mode)
 
         filename = os.path.basename(vfile)
-        dest_folder = ''
-        if '/transcoded/' in vfile:
-            dest_folder = os.path.dirname(vfile).replace('/transcoded', '/rotated')
-        elif '/original/' in vfile:
-            dest_folder = os.path.dirname(vfile).replace('/original', '/original_rotated')
-        else:
-            print('Unexpected file path. Aborting')
-            sys.exit(2)
+        dest_folder = os.path.join(os.path.dirname(vfile), 'rotated')
         #print(dest_folder)
 
         if not os.path.exists(dest_folder) and not options.dry_run:
