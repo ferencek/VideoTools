@@ -9,6 +9,18 @@ usage = "Usage: python %prog [options]"
 # input parameters
 parser = OptionParser(usage=usage)
 
+parser.add_option("-s", "--source", dest="source",
+                  help="Source folder (This parameter is mandatory)",
+                  metavar="SOURCE")
+
+parser.add_option("-d", "--destination", dest="destination",
+                  help="Destination folder (This parameter is mandatory)",
+                  metavar="DESTINATION")
+
+parser.add_option("-b", "--backup", dest="backup",
+                  help="Backup folder (This parameter is mandatory)",
+                  metavar="BACKUP")
+
 parser.add_option("-n", "--dry_run", dest="dry_run", action="store_true",
                     help="Dry run",
                     default=False)
@@ -16,13 +28,28 @@ parser.add_option("-n", "--dry_run", dest="dry_run", action="store_true",
 (options, args) = parser.parse_args()
 
 
-original_source      = '/media/ferencek/Backup/backup/Pictures/'
-original_destination = '/media/ferencek/Backup/transcoding/Pictures/original/'
+source = options.source
+# make sure the source path is defined as an absolute path
+if not source.startswith('/'):
+    source = os.path.join( os.path.abspath('.'), source )
+# make sure the source path ends with '/'
+source = source.rstrip('/') + '/'
 
-transcoded_source = '/media/ferencek/Backup/transcoding/Pictures/transcoded/'
+destination = options.destination
+# make sure the destination path is defined as an absolute path
+if not destination.startswith('/'):
+    destination = os.path.join( os.path.abspath('.'), destination )
+# make sure the destination path ends with '/'
+destination = destination.rstrip('/') + '/'
 
+backup = options.backup
+# make sure the backup path is defined as an absolute path
+if not backup.startswith('/'):
+    backup = os.path.join( os.path.abspath('.'), backup )
+# make sure the backup path ends with '/'
+backup = backup.rstrip('/') + '/'
 
-lines = file('video_files_processed_updated.txt').readlines()
+lines = file('video_files_processed.txt').readlines()
 
 pruned_lines = []
 
@@ -35,9 +62,9 @@ for line in lines:
 for counter, line in enumerate(pruned_lines, 1):
     split_line = line.strip().split(' : ')
 
-    original_file = split_line[0].strip().replace('/media/ferencek/ext_drive/backup/Pictures/', '/media/ferencek/Backup/backup/Pictures/')
+    original_file = split_line[0].strip()
 
-    transcoded_file = split_line[1].strip().replace('/hdd-data/ferencek/Videos/Workshop/Pictures/', '/media/ferencek/Backup/transcoding/Pictures/')
+    transcoded_file = split_line[1].strip()
 
     #print(original_file, transcoded_file)
 
@@ -55,37 +82,27 @@ for counter, line in enumerate(pruned_lines, 1):
         sys.exit(1)
 
     # check if the new directory for original files exists and create it if necessary
-    dest_folder_original = os.path.join( original_destination, os.path.dirname(original_file)[len(original_source):] )
-    #print(dest_folder_original)
+    backup_folder = os.path.join( backup, os.path.dirname(original_file)[len(source):] )
+    #print(backup_folder)
 
-    if not os.path.exists(dest_folder_original):
+    if not os.path.exists(backup_folder):
         if not options.dry_run:
-            os.system('mkdir -p \"%s\"' % dest_folder_original)
+            os.system('mkdir -p \"%s\"' % backup_folder)
 
-    filename_original = os.path.basename(original_file)
+    original_folder = os.path.dirname(original_file)
+    #print(original_folder)
 
-    dest_path_original = os.path.join(dest_folder_original, filename_original)
-
-
-    dest_folder_transcoded = os.path.join( original_source, os.path.dirname(transcoded_file)[len(transcoded_source):] )
-    #print(dest_folder_transcoded)
-
-    if not os.path.exists(dest_folder_transcoded):
+    if not os.path.exists(original_folder):
         print('Destination folder for the transcoded file not found. This is not expected. Aborting')
         sys.exit(2)
 
-    filename_transcoded = os.path.basename(transcoded_file)
-
-    dest_path_transcoded = os.path.join(dest_folder_transcoded, filename_transcoded)
-
-
-    cmd = 'mv -v \"%s\" \"%s\"' % (original_file, dest_path_original)
+    cmd = 'mv -v \"%s\" \"%s\"' % (original_file, backup_folder)
     print(cmd)
     if not options.dry_run:
         os.system(cmd)
     print('')
 
-    cmd = 'mv -v \"%s\" \"%s\"' % (transcoded_file, dest_path_transcoded)
+    cmd = 'mv -v \"%s\" \"%s\"' % (transcoded_file, original_folder)
     print(cmd)
     if not options.dry_run:
         os.system(cmd)
