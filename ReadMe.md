@@ -12,6 +12,8 @@ A set of Python scripts for transcoding video files.
 
 ## Software setup
 
+**Prerequisites:** `ffmpeg`, `mediainfo`, `python3-pymediainfo`
+
 To use the video tools, clone the repository
 
 ```
