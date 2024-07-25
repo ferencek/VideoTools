@@ -29,7 +29,7 @@ def main():
     parser = OptionParser(usage=usage)
 
     parser.add_option("-l", "--list", dest="flist",
-                      help="List of video files, rotation angles and conversion mode (This parameter is mandatory)",
+                      help="List of video files, rotation angles and conversion modes (This parameter is mandatory)",
                       metavar="LIST")
 
     parser.add_option("-n", "--dry_run", dest="dry_run", action="store_true",
@@ -50,11 +50,11 @@ def main():
     cmd = 'ffmpeg -encoders'
     p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
-    if 'libfdk_aac' in out:
+    if b'libfdk_aac' in out:
         audio_enc = 'libfdk_aac'
     #print(audio_enc)
 
-    lines = file(options.flist).readlines()
+    lines = open(options.flist).read().splitlines()
 
     pruned_lines = []
     # skip commented out or empty lines
@@ -87,7 +87,7 @@ def main():
         p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         xml_mediaInfo, err = p.communicate()
 
-        mediaInfo = MediaInfo(xml_mediaInfo)
+        mediaInfo = MediaInfo(xml_mediaInfo.decode())
 
         general = getTrack(mediaInfo, 'General')
 

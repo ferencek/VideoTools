@@ -18,7 +18,7 @@ parser.add_option("-d", "--destination", dest="destination",
                   metavar="DESTINATION")
 
 parser.add_option("-b", "--backup", dest="backup",
-                  help="Backup folder (This parameter is mandatory)",
+                  help="Backup folder for source files. The folder will be created if it does not already exist. (This parameter is mandatory)",
                   metavar="BACKUP")
 
 parser.add_option("-n", "--dry_run", dest="dry_run", action="store_true",
@@ -49,7 +49,7 @@ if not backup.startswith('/'):
 # make sure the backup path ends with '/'
 backup = backup.rstrip('/') + '/'
 
-lines = file('video_files_processed.txt').readlines()
+lines = open('video_files_processed.txt').read().splitlines()
 
 pruned_lines = []
 
